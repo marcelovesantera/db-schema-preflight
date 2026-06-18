@@ -1,0 +1,11 @@
+reference:
+  connectionString: "User Id=APP_REF;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+  schema: "APP_REF"
+
+target:
+  connectionString: "User Id=APP_TARGET;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+  schema: "APP_TARGET"
+
+report:
+  output: "./reports/schema-diff.html"
+  exportSql: false

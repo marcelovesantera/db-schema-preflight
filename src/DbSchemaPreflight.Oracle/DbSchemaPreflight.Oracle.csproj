@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.200" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DbSchemaPreflight.Core\DbSchemaPreflight.Core.csproj" />
+  </ItemGroup>
+
+</Project>

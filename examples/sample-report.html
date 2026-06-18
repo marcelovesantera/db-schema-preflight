@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oracle Preflight Report — APP_REF vs APP_TARGET</title>
+    <style>
+        :root {
+            --color-critical: #c0392b;
+            --color-critical-bg: #fdecea;
+            --color-warning: #d68910;
+            --color-warning-bg: #fef9e7;
+            --color-info: #2471a3;
+            --color-info-bg: #eaf4fb;
+            --color-ready: #1e8449;
+            --color-ready-bg: #eafaf1;
+            --color-not-ready: #c0392b;
+            --color-not-ready-bg: #fdecea;
+            --color-needs-review: #d68910;
+            --color-needs-review-bg: #fef9e7;
+            --color-border: #dde1e6;
+            --color-text: #21272a;
+            --color-text-muted: #697077;
+            --color-bg: #ffffff;
+            --color-header-bg: #21272a;
+            --color-header-text: #ffffff;
+            --color-section-bg: #f4f4f4;
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            --font-size-base: 14px;
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            --border-radius: 4px;
+            --border-radius-lg: 8px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-family);
+            font-size: var(--font-size-base);
+            color: var(--color-text);
+            background: var(--color-bg);
+            line-height: 1.6;
+        }
+
+        #header {
+            background: var(--color-header-bg);
+            color: var(--color-header-text);
+            padding: var(--spacing-lg) var(--spacing-xl);
+        }
+
+        #header h1 { font-size: 20px; font-weight: 600; margin-bottom: var(--spacing-sm); }
+        #header .meta { font-size: 13px; opacity: 0.75; margin-top: var(--spacing-xs); }
+        #header .meta strong { opacity: 1; font-weight: 600; }
+
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-lg) var(--spacing-xl);
+        }
+
+        .tab-bar {
+            display: flex;
+            gap: 2px;
+            border-bottom: 2px solid var(--color-border);
+            margin-bottom: var(--spacing-xl);
+            padding-top: var(--spacing-lg);
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border: none;
+            background: transparent;
+            font-family: var(--font-family);
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--color-text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover { color: var(--color-text); background: var(--color-section-bg); }
+
+        .tab-btn.active {
+            color: var(--color-text);
+            border-bottom-color: var(--color-text);
+            font-weight: 600;
+        }
+
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .panel-title {
+            font-size: 15px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--color-text-muted);
+            border-bottom: 2px solid var(--color-border);
+            padding-bottom: var(--spacing-sm);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .panel-title + .panel-title { margin-top: var(--spacing-xl); }
+
+        .filter-bar { margin-bottom: var(--spacing-md); }
+
+        .filter-input {
+            width: 100%;
+            max-width: 400px;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border: 1px solid var(--color-border);
+            border-radius: var(--border-radius);
+            font-family: var(--font-family);
+            font-size: 13px;
+            color: var(--color-text);
+            background: var(--color-bg);
+        }
+
+        .filter-input:focus { outline: none; border-color: var(--color-text); }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .summary-card {
+            border: 1px solid var(--color-border);
+            border-radius: var(--border-radius-lg);
+            padding: var(--spacing-md);
+            text-align: center;
+            background: var(--color-section-bg);
+        }
+
+        .summary-card .value { font-size: 30px; font-weight: 700; line-height: 1; }
+        .summary-card .label { font-size: 12px; color: var(--color-text-muted); margin-top: var(--spacing-xs); }
+        .summary-card.critical .value { color: var(--color-critical); }
+        .summary-card.warning .value  { color: var(--color-warning); }
+
+        .status-badge {
+            display: inline-block;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--border-radius);
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            border-width: 2px;
+            border-style: solid;
+        }
+
+        .status-badge.not-ready   { background: var(--color-not-ready-bg);   color: var(--color-not-ready);   border-color: var(--color-not-ready); }
+        .status-badge.needs-review { background: var(--color-needs-review-bg); color: var(--color-needs-review); border-color: var(--color-needs-review); }
+        .status-badge.ready       { background: var(--color-ready-bg);        color: var(--color-ready);        border-color: var(--color-ready); }
+
+        .diff-list { list-style: none; }
+
+        .diff-item {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-left: 4px solid var(--color-border);
+            margin-bottom: var(--spacing-sm);
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
+            background: var(--color-section-bg);
+        }
+
+        .diff-item.critical { border-left-color: var(--color-critical); background: var(--color-critical-bg); }
+        .diff-item.warning  { border-left-color: var(--color-warning);  background: var(--color-warning-bg);  }
+        .diff-item.info     { border-left-color: var(--color-info);     background: var(--color-info-bg);     }
+
+        .diff-header {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-xs);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .diff-badge {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .diff-badge.critical { background: var(--color-critical); color: #fff; }
+        .diff-badge.warning  { background: var(--color-warning);  color: #fff; }
+        .diff-badge.info     { background: var(--color-info);     color: #fff; }
+
+        .diff-message { font-size: 13px; color: var(--color-text); }
+
+        .diff-meta {
+            font-size: 12px;
+            color: var(--color-text-muted);
+            margin-top: var(--spacing-xs);
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .severity-group { margin-bottom: var(--spacing-md); }
+
+        .severity-group-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: var(--spacing-sm);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--border-radius);
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .severity-group-title::after { content: '▼'; font-size: 9px; font-family: sans-serif; margin-left: var(--spacing-xs); }
+        .severity-group-title.collapsed::after { content: '►'; }
+        .severity-group-title.collapsed + .diff-list { display: none; }
+
+        .severity-group-title.critical { color: var(--color-critical); background: var(--color-critical-bg); }
+        .severity-group-title.warning  { color: var(--color-warning);  background: var(--color-warning-bg);  }
+
+        .table-group { margin-bottom: var(--spacing-md); border: 1px solid var(--color-border); border-radius: var(--border-radius-lg); overflow: hidden; }
+
+        .table-group-header {
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--color-section-bg);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-bottom: 1px solid var(--color-border);
+            font-family: 'Courier New', Courier, monospace;
+            letter-spacing: 0.3px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-group-header::after { content: '▼'; font-size: 10px; color: var(--color-text-muted); flex-shrink: 0; margin-left: var(--spacing-sm); font-family: sans-serif; }
+        .table-group-header.collapsed::after { content: '►'; }
+        .table-group-header.collapsed + .table-group-body { display: none; }
+
+        .table-group-body .diff-item { margin-bottom: 0; border-radius: 0; border-left-width: 3px; }
+        .table-group-body .diff-item + .diff-item { border-top: 1px solid rgba(0, 0, 0, 0.06); }
+
+        .table-name-list { list-style: none; }
+
+        .table-name-item {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-left: 4px solid var(--color-border);
+            margin-bottom: var(--spacing-sm);
+            border-radius: 0 var(--border-radius) var(--border-radius) 0;
+            background: var(--color-section-bg);
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
+
+        .no-diff {
+            color: var(--color-text-muted);
+            font-style: italic;
+            padding: var(--spacing-md);
+            border: 1px dashed var(--color-border);
+            border-radius: var(--border-radius);
+            text-align: center;
+            background: var(--color-section-bg);
+        }
+
+        .column-group { border-bottom: 1px solid rgba(0,0,0,0.06); }
+        .column-group:last-child { border-bottom: none; }
+        .column-group-header {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: var(--spacing-xs) var(--spacing-md);
+            background: rgba(0,0,0,0.04);
+            color: var(--color-text-muted);
+            font-family: 'Courier New', Courier, monospace;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .diff-content-row {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-xs);
+        }
+        .diff-content-row .diff-message { flex: 1; margin-bottom: 0; }
+        .suggestion-toggle-btn {
+            flex-shrink: 0;
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid var(--color-border);
+            border-radius: var(--border-radius);
+            background: var(--color-bg);
+            color: var(--color-text-muted);
+            cursor: pointer;
+            font-family: var(--font-family);
+        }
+        .suggestion-toggle-btn:hover { background: var(--color-section-bg); color: var(--color-text); }
+        .suggestion-panel {
+            display: none;
+            margin-top: var(--spacing-sm);
+            border: 1px solid var(--color-border);
+            border-radius: var(--border-radius);
+            background: #1e1e1e;
+            overflow: hidden;
+        }
+        .suggestion-panel.open { display: block; }
+        .suggestion-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--spacing-xs) var(--spacing-sm);
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            font-size: 11px;
+            color: #aaa;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .suggestion-actions { display: flex; gap: var(--spacing-xs); }
+        .suggestion-action-btn {
+            padding: 2px 8px;
+            font-size: 11px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            background: #3a3a3a;
+            color: #ddd;
+            cursor: pointer;
+            font-family: var(--font-family);
+        }
+        .suggestion-action-btn:hover { background: #4a4a4a; color: #fff; }
+        .suggestion-code {
+            padding: var(--spacing-sm) var(--spacing-md);
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            color: #d4d4d4;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+        }
+    </style>
+    <script>
+        function showTab(id) {
+            document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+            var btns = document.querySelectorAll('.tab-btn');
+            btns.forEach(function(b) { b.classList.remove('active'); });
+            document.getElementById(id).classList.add('active');
+            btns.forEach(function(b) { if (b.getAttribute('data-tab') === id) b.classList.add('active'); });
+        }
+
+        function filterByName(inputId, containerId) {
+            var filter = document.getElementById(inputId).value.trim().toUpperCase();
+            document.getElementById(containerId).querySelectorAll('[data-table-name]').forEach(function(el) {
+                el.style.display = el.getAttribute('data-table-name').toUpperCase().indexOf(filter) !== -1 ? '' : 'none';
+            });
+        }
+
+        function toggleGroup(header) { header.classList.toggle('collapsed'); }
+
+        function toggleSuggestion(id) {
+            document.getElementById('sug-' + id).classList.toggle('open');
+        }
+
+        function copySuggestion(id) {
+            var code = document.getElementById('sug-code-' + id).textContent;
+            var btn = event.target;
+            navigator.clipboard.writeText(code).then(function() {
+                var orig = btn.textContent;
+                btn.textContent = 'Copiado!';
+                setTimeout(function() { btn.textContent = orig; }, 1500);
+            });
+        }
+
+        function downloadSuggestion(id, filename) {
+            var code = document.getElementById('sug-code-' + id).textContent;
+            var blob = new Blob([code], { type: 'text/plain' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
+    </script>
+</head>
+<body>
+
+<header id="header">
+    <h1>Oracle Migration Preflight Report</h1>
+    <p class="meta">Generated: <strong>2026-06-18 10:00:00</strong></p>
+    <p class="meta">Reference Schema: <strong>APP_REF</strong></p>
+    <p class="meta">Target Schema: <strong>APP_TARGET</strong></p>
+</header>
+
+<main>
+    <div class="tab-bar">
+        <button class="tab-btn active" data-tab="summary" onclick="showTab('summary')">Summary</button>
+        <button class="tab-btn" data-tab="by-severity" onclick="showTab('by-severity')">Differences by Severity</button>
+        <button class="tab-btn" data-tab="by-table" onclick="showTab('by-table')">Differences by Table</button>
+        <button class="tab-btn" data-tab="only-reference" onclick="showTab('only-reference')">Tables Only in Reference</button>
+        <button class="tab-btn" data-tab="only-target" onclick="showTab('only-target')">Tables Only in Target</button>
+    </div>
+
+    <!-- ── Summary ─────────────────────────────────────────────────────────── -->
+    <div id="summary" class="tab-panel active">
+        <h2 class="panel-title">Summary</h2>
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="value">5</div>
+                <div class="label">Tables in Reference</div>
+            </div>
+            <div class="summary-card">
+                <div class="value">5</div>
+                <div class="label">Tables in Target</div>
+            </div>
+            <div class="summary-card">
+                <div class="value">9</div>
+                <div class="label">Total Differences</div>
+            </div>
+            <div class="summary-card critical">
+                <div class="value">4</div>
+                <div class="label">Critical</div>
+            </div>
+            <div class="summary-card warning">
+                <div class="value">4</div>
+                <div class="label">Warning</div>
+            </div>
+        </div>
+        <h2 class="panel-title">Readiness Status</h2>
+        <span class="status-badge not-ready">NOT READY</span>
+    </div>
+
+    <!-- ── Differences by Severity ─────────────────────────────────────────── -->
+    <div id="by-severity" class="tab-panel">
+        <h2 class="panel-title">Differences by Severity</h2>
+
+        <div class="severity-group">
+            <span class="severity-group-title critical" onclick="toggleGroup(this)">Critical &mdash; 3</span>
+            <ul class="diff-list">
+
+                <li class="diff-item critical">
+                    <div class="diff-header">
+                        <span class="diff-badge critical">Critical</span>
+                        <span>MissingColumn &mdash; CUSTOMERS.EMAIL</span>
+                    </div>
+                    <div class="diff-content-row">
+                        <div class="diff-message">Column 'EMAIL' in table 'CUSTOMERS' is missing in target.</div>
+                        <button class="suggestion-toggle-btn" onclick="toggleSuggestion('s1')">Ver sugestão SQL ▾</button>
+                    </div>
+                    <div id="sug-s1" class="suggestion-panel open">
+                        <div class="suggestion-panel-header">
+                            <span>Sugestão — revise antes de executar manualmente</span>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-action-btn" onclick="copySuggestion('s1')">Copiar</button>
+                                <button class="suggestion-action-btn" onclick="downloadSuggestion('s1', 'CUSTOMERS_EMAIL.sql')">Baixar</button>
+                            </div>
+                        </div>
+                        <pre id="sug-code-s1" class="suggestion-code">ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot;
+ADD (
+    &quot;EMAIL&quot; VARCHAR2(300 CHAR) NOT NULL
+);</pre>
+                    </div>
+                </li>
+
+                <li class="diff-item critical">
+                    <div class="diff-header">
+                        <span class="diff-badge critical">Critical</span>
+                        <span>DataTypeMismatch &mdash; ORDERS.TOTAL_AMOUNT</span>
+                    </div>
+                    <div class="diff-content-row">
+                        <div class="diff-message">Column 'TOTAL_AMOUNT' in table 'ORDERS' has different data types.</div>
+                        <button class="suggestion-toggle-btn" onclick="toggleSuggestion('s2')">Ver sugestão SQL ▾</button>
+                    </div>
+                    <div class="diff-meta">Ref: NUMBER &rarr; Target: VARCHAR2</div>
+                    <div id="sug-s2" class="suggestion-panel">
+                        <div class="suggestion-panel-header">
+                            <span>Sugestão — revise antes de executar manualmente</span>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-action-btn" onclick="copySuggestion('s2')">Copiar</button>
+                                <button class="suggestion-action-btn" onclick="downloadSuggestion('s2', 'ORDERS_TOTAL_AMOUNT.sql')">Baixar</button>
+                            </div>
+                        </div>
+                        <pre id="sug-code-s2" class="suggestion-code">-- ATENÇÃO: Alterar o tipo de dado pode falhar ou causar perda de dados se existirem valores incompatíveis com o novo tipo.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;ORDERS&quot;
+MODIFY (
+    &quot;TOTAL_AMOUNT&quot; NUMBER(12,2)
+);</pre>
+                    </div>
+                </li>
+
+                <li class="diff-item critical">
+                    <div class="diff-header">
+                        <span class="diff-badge critical">Critical</span>
+                        <span>DataLengthSmaller &mdash; ORDERS.STATUS</span>
+                    </div>
+                    <div class="diff-content-row">
+                        <div class="diff-message">Column 'STATUS' in table 'ORDERS' has different length.</div>
+                        <button class="suggestion-toggle-btn" onclick="toggleSuggestion('s3')">Ver sugestão SQL ▾</button>
+                    </div>
+                    <div class="diff-meta">Ref: 30 &rarr; Target: 10</div>
+                    <div id="sug-s3" class="suggestion-panel">
+                        <div class="suggestion-panel-header">
+                            <span>Sugestão — revise antes de executar manualmente</span>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-action-btn" onclick="copySuggestion('s3')">Copiar</button>
+                                <button class="suggestion-action-btn" onclick="downloadSuggestion('s3', 'ORDERS_STATUS.sql')">Baixar</button>
+                            </div>
+                        </div>
+                        <pre id="sug-code-s3" class="suggestion-code">-- ATENÇÃO: Esta alteração pode falhar se existirem valores maiores que o novo tamanho definido na referência.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;ORDERS&quot;
+MODIFY (
+    &quot;STATUS&quot; VARCHAR2(30 CHAR)
+);</pre>
+                    </div>
+                </li>
+
+            </ul>
+        </div>
+
+        <div class="severity-group">
+            <span class="severity-group-title warning" onclick="toggleGroup(this)">Warning &mdash; 4</span>
+            <ul class="diff-list">
+
+                <li class="diff-item warning">
+                    <div class="diff-header">
+                        <span class="diff-badge warning">Warning</span>
+                        <span>NullabilityMismatch &mdash; CUSTOMERS.STATUS</span>
+                    </div>
+                    <div class="diff-content-row">
+                        <div class="diff-message">Column 'STATUS' in table 'CUSTOMERS' has different nullability.</div>
+                        <button class="suggestion-toggle-btn" onclick="toggleSuggestion('s4')">Ver sugestão SQL ▾</button>
+                    </div>
+                    <div class="diff-meta">Ref: False &rarr; Target: True</div>
+                    <div id="sug-s4" class="suggestion-panel">
+                        <div class="suggestion-panel-header">
+                            <span>Sugestão — revise antes de executar manualmente</span>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-action-btn" onclick="copySuggestion('s4')">Copiar</button>
+                                <button class="suggestion-action-btn" onclick="downloadSuggestion('s4', 'CUSTOMERS_STATUS.sql')">Baixar</button>
+                            </div>
+                        </div>
+                        <pre id="sug-code-s4" class="suggestion-code">-- ATENÇÃO: Esta alteração pode falhar se a coluna contiver valores NULL no banco alvo.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot;
+MODIFY (
+    &quot;STATUS&quot; NOT NULL
+);</pre>
+                    </div>
+                </li>
+
+                <li class="diff-item warning">
+                    <div class="diff-header">
+                        <span class="diff-badge warning">Warning</span>
+                        <span>DefaultValueMismatch &mdash; CUSTOMERS.STATUS</span>
+                    </div>
+                    <div class="diff-content-row">
+                        <div class="diff-message">Column 'STATUS' in table 'CUSTOMERS' has different default values.</div>
+                        <button class="suggestion-toggle-btn" onclick="toggleSuggestion('s5')">Ver sugestão SQL ▾</button>
+                    </div>
+                    <div class="diff-meta">Ref: 'ACTIVE' &rarr; Target: 'INACTIVE'</div>
+                    <div id="sug-s5" class="suggestion-panel">
+                        <div class="suggestion-panel-header">
+                            <span>Sugestão — revise antes de executar manualmente</span>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-action-btn" onclick="copySuggestion('s5')">Copiar</button>
+                                <button class="suggestion-action-btn" onclick="downloadSuggestion('s5', 'CUSTOMERS_STATUS.sql')">Baixar</button>
+                            </div>
+                        </div>
+                        <pre id="sug-code-s5" class="suggestion-code">ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot;
+MODIFY (
+    &quot;STATUS&quot; DEFAULT 'ACTIVE'
+);</pre>
+                    </div>
+                </li>
+
+                <li class="diff-item warning">
+                    <div class="diff-header">
+                        <span class="diff-badge warning">Warning</span>
+                        <span>ScaleMismatch &mdash; PRODUCTS.PRICE</span>
+                    </div>
+                    <div class="diff-content-row">
+                        <div class="diff-message">Column 'PRICE' in table 'PRODUCTS' has different scale.</div>
+                        <button class="suggestion-toggle-btn" onclick="toggleSuggestion('s6')">Ver sugestão SQL ▾</button>
+                    </div>
+                    <div class="diff-meta">Ref: 2 &rarr; Target: 0</div>
+                    <div id="sug-s6" class="suggestion-panel">
+                        <div class="suggestion-panel-header">
+                            <span>Sugestão — revise antes de executar manualmente</span>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-action-btn" onclick="copySuggestion('s6')">Copiar</button>
+                                <button class="suggestion-action-btn" onclick="downloadSuggestion('s6', 'PRODUCTS_PRICE.sql')">Baixar</button>
+                            </div>
+                        </div>
+                        <pre id="sug-code-s6" class="suggestion-code">-- ATENÇÃO: Esta alteração pode falhar se existirem valores com escala maior que a definida na referência.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;PRODUCTS&quot;
+MODIFY (
+    &quot;PRICE&quot; NUMBER(10,2)
+);</pre>
+                    </div>
+                </li>
+
+                <li class="diff-item warning">
+                    <div class="diff-header">
+                        <span class="diff-badge warning">Warning</span>
+                        <span>ExtraColumn &mdash; CUSTOMERS.INTERNAL_CODE</span>
+                    </div>
+                    <div class="diff-content-row">
+                        <div class="diff-message">Column 'INTERNAL_CODE' in table 'CUSTOMERS' exists in target but not in reference.</div>
+                        <button class="suggestion-toggle-btn" onclick="toggleSuggestion('s7')">Ver sugestão SQL ▾</button>
+                    </div>
+                    <div id="sug-s7" class="suggestion-panel">
+                        <div class="suggestion-panel-header">
+                            <span>Sugestão — revise antes de executar manualmente</span>
+                            <div class="suggestion-actions">
+                                <button class="suggestion-action-btn" onclick="copySuggestion('s7')">Copiar</button>
+                                <button class="suggestion-action-btn" onclick="downloadSuggestion('s7', 'CUSTOMERS_INTERNAL_CODE.sql')">Baixar</button>
+                            </div>
+                        </div>
+                        <pre id="sug-code-s7" class="suggestion-code">-- ATENÇÃO: Operação destrutiva. Revise manualmente antes de executar.
+-- ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot; DROP COLUMN &quot;INTERNAL_CODE&quot;;</pre>
+                    </div>
+                </li>
+
+            </ul>
+        </div>
+    </div>
+
+    <!-- ── Differences by Table ─────────────────────────────────────────────── -->
+    <div id="by-table" class="tab-panel">
+        <h2 class="panel-title">Differences by Table</h2>
+        <div class="filter-bar">
+            <input id="filter-by-table" class="filter-input" type="text" placeholder="Filter by table name..." oninput="filterByName('filter-by-table', 'by-table-list')" />
+        </div>
+        <div id="by-table-list">
+
+            <!-- CUSTOMERS: 4 differences -->
+            <div class="table-group" data-table-name="CUSTOMERS">
+                <div class="table-group-header" onclick="toggleGroup(this)">
+                    CUSTOMERS &mdash; 4 differences
+                </div>
+                <div class="table-group-body">
+
+                    <div class="column-group">
+                        <div class="column-group-header">EMAIL</div>
+                        <div class="diff-item critical">
+                            <div class="diff-header">
+                                <span class="diff-badge critical">Critical</span>
+                                <span>MissingColumn &mdash; EMAIL</span>
+                            </div>
+                            <div class="diff-content-row">
+                                <div class="diff-message">Column 'EMAIL' in table 'CUSTOMERS' is missing in target.</div>
+                                <button class="suggestion-toggle-btn" onclick="toggleSuggestion('t1a')">Ver sugestão SQL ▾</button>
+                            </div>
+                            <div id="sug-t1a" class="suggestion-panel">
+                                <div class="suggestion-panel-header">
+                                    <span>Sugestão — revise antes de executar manualmente</span>
+                                    <div class="suggestion-actions">
+                                        <button class="suggestion-action-btn" onclick="copySuggestion('t1a')">Copiar</button>
+                                        <button class="suggestion-action-btn" onclick="downloadSuggestion('t1a', 'CUSTOMERS_EMAIL.sql')">Baixar</button>
+                                    </div>
+                                </div>
+                                <pre id="sug-code-t1a" class="suggestion-code">ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot;
+ADD (
+    &quot;EMAIL&quot; VARCHAR2(300 CHAR) NOT NULL
+);</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="column-group">
+                        <div class="column-group-header">INTERNAL_CODE</div>
+                        <div class="diff-item warning">
+                            <div class="diff-header">
+                                <span class="diff-badge warning">Warning</span>
+                                <span>ExtraColumn &mdash; INTERNAL_CODE</span>
+                            </div>
+                            <div class="diff-content-row">
+                                <div class="diff-message">Column 'INTERNAL_CODE' in table 'CUSTOMERS' exists in target but not in reference.</div>
+                                <button class="suggestion-toggle-btn" onclick="toggleSuggestion('t1b')">Ver sugestão SQL ▾</button>
+                            </div>
+                            <div id="sug-t1b" class="suggestion-panel">
+                                <div class="suggestion-panel-header">
+                                    <span>Sugestão — revise antes de executar manualmente</span>
+                                    <div class="suggestion-actions">
+                                        <button class="suggestion-action-btn" onclick="copySuggestion('t1b')">Copiar</button>
+                                        <button class="suggestion-action-btn" onclick="downloadSuggestion('t1b', 'CUSTOMERS_INTERNAL_CODE.sql')">Baixar</button>
+                                    </div>
+                                </div>
+                                <pre id="sug-code-t1b" class="suggestion-code">-- ATENÇÃO: Operação destrutiva. Revise manualmente antes de executar.
+-- ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot; DROP COLUMN &quot;INTERNAL_CODE&quot;;</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="column-group">
+                        <div class="column-group-header">STATUS</div>
+                        <div class="diff-item warning">
+                            <div class="diff-header">
+                                <span class="diff-badge warning">Warning</span>
+                                <span>NullabilityMismatch &mdash; STATUS</span>
+                            </div>
+                            <div class="diff-content-row">
+                                <div class="diff-message">Column 'STATUS' in table 'CUSTOMERS' has different nullability.</div>
+                                <button class="suggestion-toggle-btn" onclick="toggleSuggestion('t1c')">Ver sugestão SQL ▾</button>
+                            </div>
+                            <div class="diff-meta">Ref: False &rarr; Target: True</div>
+                            <div id="sug-t1c" class="suggestion-panel">
+                                <div class="suggestion-panel-header">
+                                    <span>Sugestão — revise antes de executar manualmente</span>
+                                    <div class="suggestion-actions">
+                                        <button class="suggestion-action-btn" onclick="copySuggestion('t1c')">Copiar</button>
+                                        <button class="suggestion-action-btn" onclick="downloadSuggestion('t1c', 'CUSTOMERS_STATUS.sql')">Baixar</button>
+                                    </div>
+                                </div>
+                                <pre id="sug-code-t1c" class="suggestion-code">-- ATENÇÃO: Esta alteração pode falhar se a coluna contiver valores NULL no banco alvo.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot;
+MODIFY (
+    &quot;STATUS&quot; NOT NULL
+);</pre>
+                            </div>
+                        </div>
+                        <div class="diff-item warning">
+                            <div class="diff-header">
+                                <span class="diff-badge warning">Warning</span>
+                                <span>DefaultValueMismatch &mdash; STATUS</span>
+                            </div>
+                            <div class="diff-content-row">
+                                <div class="diff-message">Column 'STATUS' in table 'CUSTOMERS' has different default values.</div>
+                                <button class="suggestion-toggle-btn" onclick="toggleSuggestion('t1d')">Ver sugestão SQL ▾</button>
+                            </div>
+                            <div class="diff-meta">Ref: 'ACTIVE' &rarr; Target: 'INACTIVE'</div>
+                            <div id="sug-t1d" class="suggestion-panel">
+                                <div class="suggestion-panel-header">
+                                    <span>Sugestão — revise antes de executar manualmente</span>
+                                    <div class="suggestion-actions">
+                                        <button class="suggestion-action-btn" onclick="copySuggestion('t1d')">Copiar</button>
+                                        <button class="suggestion-action-btn" onclick="downloadSuggestion('t1d', 'CUSTOMERS_STATUS.sql')">Baixar</button>
+                                    </div>
+                                </div>
+                                <pre id="sug-code-t1d" class="suggestion-code">ALTER TABLE &quot;APP_TARGET&quot;.&quot;CUSTOMERS&quot;
+MODIFY (
+    &quot;STATUS&quot; DEFAULT 'ACTIVE'
+);</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ORDERS: 2 differences -->
+            <div class="table-group" data-table-name="ORDERS">
+                <div class="table-group-header" onclick="toggleGroup(this)">
+                    ORDERS &mdash; 2 differences
+                </div>
+                <div class="table-group-body">
+
+                    <div class="column-group">
+                        <div class="column-group-header">STATUS</div>
+                        <div class="diff-item critical">
+                            <div class="diff-header">
+                                <span class="diff-badge critical">Critical</span>
+                                <span>DataLengthSmaller &mdash; STATUS</span>
+                            </div>
+                            <div class="diff-content-row">
+                                <div class="diff-message">Column 'STATUS' in table 'ORDERS' has different length.</div>
+                                <button class="suggestion-toggle-btn" onclick="toggleSuggestion('t2a')">Ver sugestão SQL ▾</button>
+                            </div>
+                            <div class="diff-meta">Ref: 30 &rarr; Target: 10</div>
+                            <div id="sug-t2a" class="suggestion-panel">
+                                <div class="suggestion-panel-header">
+                                    <span>Sugestão — revise antes de executar manualmente</span>
+                                    <div class="suggestion-actions">
+                                        <button class="suggestion-action-btn" onclick="copySuggestion('t2a')">Copiar</button>
+                                        <button class="suggestion-action-btn" onclick="downloadSuggestion('t2a', 'ORDERS_STATUS.sql')">Baixar</button>
+                                    </div>
+                                </div>
+                                <pre id="sug-code-t2a" class="suggestion-code">-- ATENÇÃO: Esta alteração pode falhar se existirem valores maiores que o novo tamanho definido na referência.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;ORDERS&quot;
+MODIFY (
+    &quot;STATUS&quot; VARCHAR2(30 CHAR)
+);</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="column-group">
+                        <div class="column-group-header">TOTAL_AMOUNT</div>
+                        <div class="diff-item critical">
+                            <div class="diff-header">
+                                <span class="diff-badge critical">Critical</span>
+                                <span>DataTypeMismatch &mdash; TOTAL_AMOUNT</span>
+                            </div>
+                            <div class="diff-content-row">
+                                <div class="diff-message">Column 'TOTAL_AMOUNT' in table 'ORDERS' has different data types.</div>
+                                <button class="suggestion-toggle-btn" onclick="toggleSuggestion('t2b')">Ver sugestão SQL ▾</button>
+                            </div>
+                            <div class="diff-meta">Ref: NUMBER &rarr; Target: VARCHAR2</div>
+                            <div id="sug-t2b" class="suggestion-panel">
+                                <div class="suggestion-panel-header">
+                                    <span>Sugestão — revise antes de executar manualmente</span>
+                                    <div class="suggestion-actions">
+                                        <button class="suggestion-action-btn" onclick="copySuggestion('t2b')">Copiar</button>
+                                        <button class="suggestion-action-btn" onclick="downloadSuggestion('t2b', 'ORDERS_TOTAL_AMOUNT.sql')">Baixar</button>
+                                    </div>
+                                </div>
+                                <pre id="sug-code-t2b" class="suggestion-code">-- ATENÇÃO: Alterar o tipo de dado pode falhar ou causar perda de dados se existirem valores incompatíveis com o novo tipo.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;ORDERS&quot;
+MODIFY (
+    &quot;TOTAL_AMOUNT&quot; NUMBER(12,2)
+);</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- PRODUCTS: 1 difference -->
+            <div class="table-group" data-table-name="PRODUCTS">
+                <div class="table-group-header" onclick="toggleGroup(this)">
+                    PRODUCTS &mdash; 1 difference
+                </div>
+                <div class="table-group-body">
+                    <div class="column-group">
+                        <div class="column-group-header">PRICE</div>
+                        <div class="diff-item warning">
+                            <div class="diff-header">
+                                <span class="diff-badge warning">Warning</span>
+                                <span>ScaleMismatch &mdash; PRICE</span>
+                            </div>
+                            <div class="diff-content-row">
+                                <div class="diff-message">Column 'PRICE' in table 'PRODUCTS' has different scale.</div>
+                                <button class="suggestion-toggle-btn" onclick="toggleSuggestion('t3a')">Ver sugestão SQL ▾</button>
+                            </div>
+                            <div class="diff-meta">Ref: 2 &rarr; Target: 0</div>
+                            <div id="sug-t3a" class="suggestion-panel">
+                                <div class="suggestion-panel-header">
+                                    <span>Sugestão — revise antes de executar manualmente</span>
+                                    <div class="suggestion-actions">
+                                        <button class="suggestion-action-btn" onclick="copySuggestion('t3a')">Copiar</button>
+                                        <button class="suggestion-action-btn" onclick="downloadSuggestion('t3a', 'PRODUCTS_PRICE.sql')">Baixar</button>
+                                    </div>
+                                </div>
+                                <pre id="sug-code-t3a" class="suggestion-code">-- ATENÇÃO: Esta alteração pode falhar se existirem valores com escala maior que a definida na referência.
+ALTER TABLE &quot;APP_TARGET&quot;.&quot;PRODUCTS&quot;
+MODIFY (
+    &quot;PRICE&quot; NUMBER(10,2)
+);</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── Tables Only in Reference ────────────────────────────────────────── -->
+    <div id="only-reference" class="tab-panel">
+        <h2 class="panel-title">Tables Only in Reference</h2>
+        <div class="filter-bar">
+            <input id="filter-only-reference" class="filter-input" type="text" placeholder="Filter by table name..." oninput="filterByName('filter-only-reference', 'only-reference-list')" />
+        </div>
+        <ul id="only-reference-list" class="table-name-list">
+            <li class="table-name-item" data-table-name="PAYMENTS">PAYMENTS</li>
+        </ul>
+    </div>
+
+    <!-- ── Tables Only in Target ───────────────────────────────────────────── -->
+    <div id="only-target" class="tab-panel">
+        <h2 class="panel-title">Tables Only in Target</h2>
+        <div class="filter-bar">
+            <input id="filter-only-target" class="filter-input" type="text" placeholder="Filter by table name..." oninput="filterByName('filter-only-target', 'only-target-list')" />
+        </div>
+        <ul id="only-target-list" class="table-name-list">
+            <li class="table-name-item" data-table-name="AUDIT_LOG">AUDIT_LOG</li>
+        </ul>
+    </div>
+
+</main>
+
+</body>
+</html>
