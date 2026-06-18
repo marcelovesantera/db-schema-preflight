@@ -6,7 +6,7 @@
 # dotenv files
 .env
 
-# Oracle Preflight config (contains credentials — never commit)
+# Database Schema Preflight config (contains credentials — never commit)
 config.yaml
 !config.yaml.example
 
@@ -489,3 +489,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+.aide/
+.claude/

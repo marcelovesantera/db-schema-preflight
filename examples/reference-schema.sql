@@ -1,0 +1,49 @@
+-- Reference schema DDL
+-- Use this script to create the reference schema in a local Oracle XE instance.
+-- Connect as the APP_REF user before running.
+
+CREATE TABLE CUSTOMERS (
+    ID            NUMBER(10)      NOT NULL,
+    NAME          VARCHAR2(200)   NOT NULL,
+    EMAIL         VARCHAR2(300)   NOT NULL,
+    PHONE         VARCHAR2(20),
+    STATUS        VARCHAR2(20)    DEFAULT 'ACTIVE' NOT NULL,
+    CREATED_AT    DATE            NOT NULL,
+    CONSTRAINT PK_CUSTOMERS PRIMARY KEY (ID)
+);
+
+CREATE TABLE PRODUCTS (
+    ID            NUMBER(10)      NOT NULL,
+    NAME          VARCHAR2(200)   NOT NULL,
+    DESCRIPTION   VARCHAR2(1000),
+    PRICE         NUMBER(10, 2)   NOT NULL,
+    STOCK_QTY     NUMBER(10)      NOT NULL,
+    CONSTRAINT PK_PRODUCTS PRIMARY KEY (ID)
+);
+
+CREATE TABLE ORDERS (
+    ID            NUMBER(10)      NOT NULL,
+    CUSTOMER_ID   NUMBER(10)      NOT NULL,
+    TOTAL_AMOUNT  NUMBER(12, 2)   NOT NULL,
+    ORDER_DATE    DATE            NOT NULL,
+    STATUS        VARCHAR2(30)    NOT NULL,
+    CONSTRAINT PK_ORDERS PRIMARY KEY (ID)
+);
+
+CREATE TABLE ORDER_ITEMS (
+    ID            NUMBER(10)      NOT NULL,
+    ORDER_ID      NUMBER(10)      NOT NULL,
+    PRODUCT_ID    NUMBER(10)      NOT NULL,
+    QUANTITY      NUMBER(10)      NOT NULL,
+    UNIT_PRICE    NUMBER(12, 2)   NOT NULL,
+    CONSTRAINT PK_ORDER_ITEMS PRIMARY KEY (ID)
+);
+
+CREATE TABLE PAYMENTS (
+    ID            NUMBER(10)      NOT NULL,
+    ORDER_ID      NUMBER(10)      NOT NULL,
+    AMOUNT        NUMBER(12, 2)   NOT NULL,
+    PAYMENT_DATE  DATE            NOT NULL,
+    METHOD        VARCHAR2(50)    NOT NULL,
+    CONSTRAINT PK_PAYMENTS PRIMARY KEY (ID)
+);
