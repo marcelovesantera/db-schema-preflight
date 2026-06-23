@@ -1,4 +1,9 @@
 using DbSchemaPreflight.Cli.Config;
+using DbSchemaPreflight.Core.ScriptAnalysis.Models;
+using DbSchemaPreflight.Core.ScriptAnalysis.Parsing;
+using DbSchemaPreflight.Core.ScriptAnalysis.Validation;
+using DbSchemaPreflight.Oracle.ScriptAnalysis;
+using DbSchemaPreflight.Reporting.ScriptAnalysis;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using YamlDotNet.Serialization;
@@ -6,7 +11,7 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace DbSchemaPreflight.Cli.Commands;
 
-public sealed class AnalyseScriptCommand : Command<AnalyseScriptSettings>
+public sealed class AnalyseScriptCommand : AsyncCommand<AnalyseScriptSettings>
 {
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -22,7 +27,7 @@ public sealed class AnalyseScriptCommand : Command<AnalyseScriptSettings>
         "oracle"
     };
 
-    protected override int Execute(CommandContext context, AnalyseScriptSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, AnalyseScriptSettings settings, CancellationToken cancellationToken)
     {
         var configPath = Path.Combine(Directory.GetCurrentDirectory(), "config.yaml");
 
@@ -72,10 +77,59 @@ public sealed class AnalyseScriptCommand : Command<AnalyseScriptSettings>
             return 1;
         }
 
+        var reportPath = ResolveReportPath(config, sqlFilePath);
+
         AnsiConsole.MarkupLine($"[grey][[{DateTime.Now:HH:mm:ss}]][/] Analysing: {Markup.Escape(sqlFilePath)}");
         AnsiConsole.MarkupLine($"[grey][[{DateTime.Now:HH:mm:ss}]][/] Connecting to schema: {Markup.Escape(config.Schema)} ({Markup.Escape(config.Provider)})...");
 
-        return 0;
+        var queries = DbScriptValidationFactory.Create(config.Provider, config.ConnectionString);
+        try
+        {
+            // Probe the connection before starting analysis
+            await queries.TableExistsAsync(config.Schema, "__probe__");
+        }
+        catch (Exception)
+        {
+            AnsiConsole.MarkupLine("[red]Connection failed.[/]");
+            AnsiConsole.MarkupLine($"Check the connectionString in config.yaml under analyse-script-tool.");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("No analysis was performed.");
+            AnsiConsole.MarkupLine("No script was executed against your database.");
+            return 1;
+        }
+
+        var sqlContent = await File.ReadAllTextAsync(sqlFilePath);
+        var parsed = new ScriptParser().Parse(sqlContent);
+
+        AnsiConsole.MarkupLine($"[grey][[{DateTime.Now:HH:mm:ss}]][/] Statements found: {parsed.Count}");
+
+        var validator = new StatementValidator();
+        var results = new List<StatementResult>();
+
+        foreach (var statement in parsed)
+        {
+            var result = await validator.ValidateAsync(statement, config.Schema, queries);
+            results.Add(result);
+        }
+
+        var analysisResult = new ScriptAnalysisResult(sqlFilePath, DateTime.Now, results);
+
+        try
+        {
+            await new ScriptAnalysisHtmlReportGenerator().GenerateAsync(analysisResult, config.Schema, reportPath);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Error:[/] Failed to save report to '{Markup.Escape(reportPath)}': {Markup.Escape(ex.Message)}");
+            return 1;
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine($"[grey][[{DateTime.Now:HH:mm:ss}]][/] Statements found: {results.Count}");
+        AnsiConsole.MarkupLine($"           [green]OK[/]: {analysisResult.OkCount} | [red]ERROR[/]: {analysisResult.ErrorCount} | [yellow]WARNING[/]: {analysisResult.WarningCount} | SKIPPED: {analysisResult.SkippedCount}");
+        AnsiConsole.MarkupLine($"[grey][[{DateTime.Now:HH:mm:ss}]][/] Report: {Markup.Escape(reportPath)}");
+
+        return analysisResult.ErrorCount > 0 ? 1 : 0;
     }
 
     private static string DiscoverSqlFile(AnalyseScriptToolConfig config)
