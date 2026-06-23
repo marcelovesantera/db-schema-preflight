@@ -5,13 +5,13 @@ namespace DbSchemaPreflight.Core.ScriptAnalysis.Parsing;
 
 public sealed class ScriptParser
 {
-    private static readonly HashSet<string> StructuralKeywords = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> PureStructuralKeywords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "BEGIN", "END", "COMMIT", "ROLLBACK", "/"
+        "END", "COMMIT", "ROLLBACK", "/"
     };
 
     private static readonly Regex BlockCommentRegex = new(@"/\*.*?\*/", RegexOptions.Singleline | RegexOptions.Compiled);
-    private static readonly Regex DeclareVariableRegex = new(@"^\s*(\w+)\s+(\S+(?:\s*\([^)]*\))?)\s*$", RegexOptions.Multiline | RegexOptions.Compiled);
+    private static readonly Regex DeclareVariableRegex = new(@"^\s*(\w+)\s+(\S+(?:\s*\([^)]*\))?)\s*$", RegexOptions.Compiled);
 
     public IReadOnlyList<ParsedStatement> Parse(string sqlContent)
     {
@@ -19,65 +19,107 @@ public sealed class ScriptParser
         var tokens = content.Split(';');
         var results = new List<ParsedStatement>();
         var currentDeclaredVariables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var inDeclare = false;
         var sequenceNumber = 1;
+        var classifier = new StatementClassifier();
 
         foreach (var token in tokens)
         {
             var trimmed = RemoveLineComments(token).Trim();
 
-            if (string.IsNullOrWhiteSpace(trimmed))
+            if (string.IsNullOrWhiteSpace(trimmed) || IsOnlyLineComments(trimmed))
                 continue;
 
-            var normalized = trimmed.ToUpperInvariant();
+            var upper = trimmed.ToUpperInvariant();
 
-            if (normalized == "DECLARE")
+            // Pure structural keyword — discard
+            if (PureStructuralKeywords.Contains(upper))
                 continue;
 
-            if (StructuralKeywords.Contains(normalized))
-                continue;
-
-            if (normalized.StartsWith("DECLARE"))
+            // BEGIN alone — end of declare scope
+            if (upper == "BEGIN")
             {
+                inDeclare = false;
+                continue;
+            }
+
+            // DECLARE alone or DECLARE followed by content
+            if (upper == "DECLARE" || StartsWithKeyword(upper, "DECLARE"))
+            {
+                inDeclare = true;
+                currentDeclaredVariables.Clear();
                 ExtractDeclaredVariables(trimmed, currentDeclaredVariables);
                 continue;
             }
 
-            if (IsOnlyLineComments(trimmed))
+            // BEGIN followed by a statement on the same token (e.g. "BEGIN\n  INSERT ...")
+            if (StartsWithKeyword(upper, "BEGIN"))
+            {
+                inDeclare = false;
+                var body = StripTrailingEnd(trimmed.Substring(5).Trim());
+                if (!string.IsNullOrWhiteSpace(body))
+                    results.Add(new ParsedStatement(sequenceNumber++, body, classifier.Classify(body), Copy(currentDeclaredVariables)));
+                continue;
+            }
+
+            // Inside a DECLARE block — accumulate variable declarations
+            if (inDeclare)
+            {
+                if (TryParseVariableDeclaration(trimmed, out var varName, out var varType))
+                {
+                    currentDeclaredVariables[varName] = varType;
+                    continue;
+                }
+                inDeclare = false;
+            }
+
+            var statementText = StripTrailingEnd(trimmed);
+            if (string.IsNullOrWhiteSpace(statementText))
                 continue;
 
-            var type = new StatementClassifier().Classify(trimmed);
-
-            results.Add(new ParsedStatement(
-                sequenceNumber++,
-                trimmed,
-                type,
-                new Dictionary<string, string>(currentDeclaredVariables)));
+            results.Add(new ParsedStatement(sequenceNumber++, statementText, classifier.Classify(statementText), Copy(currentDeclaredVariables)));
         }
 
         return results;
     }
 
+    private static bool StartsWithKeyword(string upper, string keyword) =>
+        upper.Length > keyword.Length && upper.StartsWith(keyword) &&
+        (upper[keyword.Length] == '\n' || upper[keyword.Length] == '\r' || upper[keyword.Length] == ' ' || upper[keyword.Length] == '\t');
+
+    private static string StripTrailingEnd(string text)
+    {
+        var trimmed = text.TrimEnd();
+        if (trimmed.EndsWith("END", StringComparison.OrdinalIgnoreCase))
+            return trimmed.Substring(0, trimmed.Length - 3).TrimEnd();
+        return text;
+    }
+
     private static void ExtractDeclaredVariables(string declareBlock, Dictionary<string, string> variables)
     {
-        // Strip the DECLARE keyword and parse variable declarations
         var body = declareBlock.Trim();
         if (body.StartsWith("DECLARE", StringComparison.OrdinalIgnoreCase))
             body = body.Substring(7);
 
         foreach (var line in body.Split('\n'))
         {
-            var lineTrimmed = line.Trim().TrimEnd(';');
-            if (string.IsNullOrWhiteSpace(lineTrimmed))
-                continue;
-
-            var match = DeclareVariableRegex.Match(lineTrimmed);
-            if (match.Success)
-            {
-                var varName = match.Groups[1].Value;
-                var varType = match.Groups[2].Value;
-                variables[varName] = varType;
-            }
+            if (TryParseVariableDeclaration(line.Trim().TrimEnd(';'), out var name, out var type))
+                variables[name] = type;
         }
+    }
+
+    private static bool TryParseVariableDeclaration(string text, out string varName, out string varType)
+    {
+        var match = DeclareVariableRegex.Match(text.Trim());
+        if (match.Success)
+        {
+            varName = match.Groups[1].Value;
+            varType = match.Groups[2].Value;
+            return true;
+        }
+        varName = string.Empty;
+        varType = string.Empty;
+        return false;
     }
 
     private static string RemoveLineComments(string text)
@@ -102,4 +144,7 @@ public sealed class ScriptParser
         }
         return true;
     }
+
+    private static Dictionary<string, string> Copy(Dictionary<string, string> source) =>
+        new(source, StringComparer.OrdinalIgnoreCase);
 }
