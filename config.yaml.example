@@ -9,3 +9,11 @@ target:
 report:
   output: "./reports/schema-diff.html"
   exportSql: false
+
+analyse-script-tool:
+  provider: "oracle"
+  connectionString: "User Id=APP_USER;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+  schema: "APP_SCHEMA"
+  # file: "./scripts/my-script.sql"   # optional; if absent, interactive selection from current directory
+  report:
+    output: "./reports/script-analysis.html"
