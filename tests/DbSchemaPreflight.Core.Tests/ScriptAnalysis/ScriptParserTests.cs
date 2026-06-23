@@ -98,4 +98,38 @@ END";
         result.Should().HaveCount(1);
         result[0].RawText.Should().Contain("\"MY_TABLE\"");
     }
+
+    [Fact]
+    public void Parse_OnlyBlockComments_ReturnsEmpty()
+    {
+        var sql = "/* this is a block comment */";
+
+        var result = _parser.Parse(sql);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Parse_MultipleStatementsOutsideBlock_ReturnsAllSequenced()
+    {
+        var sql = "INSERT INTO TB_A (ID) VALUES (1);\nUPDATE TB_B SET X = 1 WHERE ID = 2;\nDELETE FROM TB_C WHERE ID = 3";
+
+        var result = _parser.Parse(sql);
+
+        result.Should().HaveCount(3);
+        result[0].SequenceNumber.Should().Be(1);
+        result[1].SequenceNumber.Should().Be(2);
+        result[2].SequenceNumber.Should().Be(3);
+    }
+
+    [Fact]
+    public void Parse_DeleteStatement_ReturnsDeleteType()
+    {
+        var sql = "DELETE FROM TB_USER WHERE ID = 1";
+
+        var result = _parser.Parse(sql);
+
+        result.Should().HaveCount(1);
+        result[0].Type.Should().Be(StatementType.Delete);
+    }
 }

@@ -22,7 +22,7 @@ public sealed class CompareCommand : Command<CompareSettings>
     protected override int Execute(CommandContext context, CompareSettings settings, CancellationToken cancellationToken)
     {
         var yaml = File.ReadAllText(settings.Config!);
-        var config = Deserializer.Deserialize<PreflightConfig>(yaml);
+        var config = Deserializer.Deserialize<RootConfig>(yaml);
 
         if (string.IsNullOrWhiteSpace(config.Reference.ConnectionString))
         {

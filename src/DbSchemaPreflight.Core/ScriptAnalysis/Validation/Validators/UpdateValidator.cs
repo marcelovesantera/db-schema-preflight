@@ -27,6 +27,7 @@ internal sealed class UpdateValidator : IStatementValidator
         }
 
         var warnings = new List<string>();
+        string? whereNoRowsSuggestion = null;
 
         var pkColumns = await queries.GetPrimaryKeyColumnsAsync(schema, tableName);
         var pkInSet = setColumns
@@ -48,12 +49,17 @@ internal sealed class UpdateValidator : IStatementValidator
                 var count = await queries.CountRowsMatchingSelectAsync(
                     $"SELECT 1 FROM {schema.ToUpperInvariant()}.{tableName.ToUpperInvariant()} WHERE {whereClause}");
                 if (count == 0)
+                {
                     warnings.Add($"WHERE clause matches no rows in '{tableName}'");
+                    var rawEscaped = statement.RawText.Replace("'", "''");
+                    whereNoRowsSuggestion = $"-- WHERE clause matched no rows in '{tableName}' -- verify intent before executing\n" +
+                                           $"BEGIN\n  EXECUTE IMMEDIATE '{rawEscaped}';\nEND;";
+                }
             }
         }
 
         if (warnings.Count > 0)
-            return Warning(statement, warnings);
+            return Warning(statement, warnings, whereNoRowsSuggestion);
 
         return Ok(statement);
     }

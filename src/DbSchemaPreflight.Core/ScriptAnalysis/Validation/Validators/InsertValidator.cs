@@ -29,6 +29,13 @@ internal sealed class InsertValidator : IStatementValidator
                 return Error(statement, $"Column '{col}' does not exist on table '{tableName}'");
         }
 
+        var notNullCols = await queries.GetNotNullColumnsWithoutDefaultAsync(schema, tableName);
+        foreach (var notNull in notNullCols)
+        {
+            if (!columns.Any(c => string.Equals(c, notNull.ColumnName, StringComparison.OrdinalIgnoreCase)))
+                return Error(statement, $"Required column '{notNull.ColumnName}' (NOT NULL, no default) is missing from INSERT");
+        }
+
         var valsMatch = Regex.Match(statement.RawText, @"\bVALUES\b\s*\((.+)\)\s*$", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (!valsMatch.Success)
             return Ok(statement);
