@@ -13,68 +13,67 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace DbSchemaPreflight.Cli.Commands;
 
-public sealed class CompareCommand : Command<CompareSettings>
+public sealed class CompareCommand : AsyncCommand<CompareSettings>
 {
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .Build();
 
-    protected override int Execute(CommandContext context, CompareSettings settings, CancellationToken cancellationToken)
+    protected override async Task<int> ExecuteAsync(CommandContext context, CompareSettings settings, CancellationToken cancellationToken)
     {
-        var yaml = File.ReadAllText(settings.Config!);
-        var config = Deserializer.Deserialize<RootConfig>(yaml);
+        var configPath = Path.Combine(Directory.GetCurrentDirectory(), "config.yaml");
 
-        if (string.IsNullOrWhiteSpace(config.Reference.ConnectionString))
+        if (!File.Exists(configPath))
         {
-            AnsiConsole.MarkupLine("[red]Error:[/] reference.connectionString is required in the configuration file.");
-            return 1;
-        }
-        if (string.IsNullOrWhiteSpace(config.Reference.Schema))
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] reference.schema is required in the configuration file.");
-            return 1;
-        }
-        if (string.IsNullOrWhiteSpace(config.Target.ConnectionString))
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] target.connectionString is required in the configuration file.");
-            return 1;
-        }
-        if (string.IsNullOrWhiteSpace(config.Target.Schema))
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] target.schema is required in the configuration file.");
-            return 1;
-        }
-        if (string.IsNullOrWhiteSpace(config.Report.Output))
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] report.output is required in the configuration file.");
+            AnsiConsole.MarkupLine("[red]Config file not found in the current directory.[/]");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("Run: [bold]dbpreflight init[/]");
             return 1;
         }
 
-        AnsiConsole.MarkupLine("Database Schema Preflight");
-        AnsiConsole.MarkupLine($"Comparing {config.Reference.Schema} → {config.Target.Schema}...");
-        AnsiConsole.WriteLine();
+        var rootConfig = Deserializer.Deserialize<RootConfig>(File.ReadAllText(configPath));
+
+        if (rootConfig?.CompareTool is null)
+        {
+            AnsiConsole.MarkupLine("[red]Section 'compare-tool' not found in config.yaml.[/]");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("Run [bold]dbpreflight init[/] to see an example configuration with all available sections.");
+            return 1;
+        }
+
+        var config = rootConfig.CompareTool;
+
+        AnsiConsole.MarkupLine($"[grey][[{DateTime.Now:HH:mm:ss}]][/] Connecting to reference schema: {Markup.Escape(config.Reference.Schema)}...");
 
         var extractor = new OracleMetadataExtractor();
 
         SchemaSnapshot reference;
         try
         {
-            reference = extractor.Extract(config.Reference.ConnectionString, config.Reference.Schema);
+            reference = await extractor.ExtractAsync(config.Reference.ConnectionString, config.Reference.Schema);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Failed to extract metadata from reference schema '{config.Reference.Schema}': {ex.Message}");
+            AnsiConsole.MarkupLine("[red]Connection failed.[/]");
+            AnsiConsole.MarkupLine("Check the reference.connectionString in config.yaml under compare-tool.");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("No comparison was performed.");
             return 1;
         }
+
+        AnsiConsole.MarkupLine($"[grey][[{DateTime.Now:HH:mm:ss}]][/] Connecting to target schema: {Markup.Escape(config.Target.Schema)}...");
 
         SchemaSnapshot target;
         try
         {
-            target = extractor.Extract(config.Target.ConnectionString, config.Target.Schema);
+            target = await extractor.ExtractAsync(config.Target.ConnectionString, config.Target.Schema);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Failed to extract metadata from target schema '{config.Target.Schema}': {ex.Message}");
+            AnsiConsole.MarkupLine("[red]Connection failed.[/]");
+            AnsiConsole.MarkupLine("Check the target.connectionString in config.yaml under compare-tool.");
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("No comparison was performed.");
             return 1;
         }
 
@@ -120,7 +119,7 @@ public sealed class CompareCommand : Command<CompareSettings>
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Error:[/] Failed to save report to '{config.Report.Output}': {ex.Message}");
+            AnsiConsole.MarkupLine($"[red]Error:[/] Failed to save report to '{Markup.Escape(config.Report.Output)}': {Markup.Escape(ex.Message)}");
             return 1;
         }
 
