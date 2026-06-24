@@ -88,10 +88,11 @@ public sealed class AnalyseScriptCommand : AsyncCommand<AnalyseScriptSettings>
             // Probe the connection before starting analysis
             await queries.TableExistsAsync(config.Schema, "__probe__");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             AnsiConsole.MarkupLine("[red]Connection failed.[/]");
             AnsiConsole.MarkupLine($"Check the connectionString in config.yaml under analyse-script-tool.");
+            AnsiConsole.MarkupLine($"[grey]Detail: {Markup.Escape(ex.Message)}[/]");
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("No analysis was performed.");
             AnsiConsole.MarkupLine("No script was executed against your database.");
@@ -141,28 +142,32 @@ public sealed class AnalyseScriptCommand : AsyncCommand<AnalyseScriptSettings>
             return config.File;
         }
 
-        var sqlFiles = Directory.GetFiles(Directory.GetCurrentDirectory(), "*.sql");
+        var cwd = Directory.GetCurrentDirectory();
+        var sqlFiles = Directory.GetFiles(cwd, "*.sql", SearchOption.AllDirectories);
 
         if (sqlFiles.Length == 0)
         {
             throw new InvalidOperationException(
                 """
-                No .sql files found in the current directory.
+                No .sql files found in the current directory or its subdirectories.
 
-                Add a SQL file to the current directory or configure the file path in config.yaml:
+                Add a SQL file or configure the file path in config.yaml:
 
                   analyse-script-tool:
                     file: "./scripts/my-script.sql"
                 """);
         }
 
-        var fileNames = sqlFiles.Select(f => Path.GetFileName(f)).ToArray();
+        var relativePaths = sqlFiles
+            .Select(f => Path.GetRelativePath(cwd, f))
+            .ToArray();
+
         var selected = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("Select a SQL file to analyse:")
-                .AddChoices(fileNames));
+                .AddChoices(relativePaths));
 
-        return Path.Combine(Directory.GetCurrentDirectory(), selected);
+        return Path.Combine(cwd, selected);
     }
 
     private static string ResolveReportPath(AnalyseScriptToolConfig config, string sqlFilePath)

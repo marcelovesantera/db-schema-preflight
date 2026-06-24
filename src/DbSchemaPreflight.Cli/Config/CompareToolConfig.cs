@@ -1,6 +1,6 @@
 namespace DbSchemaPreflight.Cli.Config;
 
-public sealed class PreflightConfig
+public sealed class CompareTool
 {
     public ConnectionConfig Reference { get; set; } = new();
     public ConnectionConfig Target { get; set; } = new();

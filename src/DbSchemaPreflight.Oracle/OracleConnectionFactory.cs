@@ -4,12 +4,12 @@ namespace DbSchemaPreflight.Oracle;
 
 public sealed class OracleConnectionFactory
 {
-    public OracleConnection OpenConnection(string connectionString)
+    public async Task<OracleConnection> OpenConnectionAsync(string connectionString)
     {
         var connection = new OracleConnection(connectionString);
         try
         {
-            connection.Open();
+            await connection.OpenAsync();
             return connection;
         }
         catch (Exception ex)

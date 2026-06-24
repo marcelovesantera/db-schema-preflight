@@ -9,17 +9,18 @@ public sealed class InitCommand : Command<InitSettings>
 {
     private const string CONFIG_TEMPLATE =
         """
-        reference:
-          connectionString: "User Id=APP_REF;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
-          schema: "APP_REF"
+        compare-tool:
+          reference:
+            connectionString: "User Id=APP_REF;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+            schema: "APP_REF"
 
-        target:
-          connectionString: "User Id=APP_TARGET;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
-          schema: "APP_TARGET"
+          target:
+            connectionString: "User Id=APP_TARGET;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+            schema: "APP_TARGET"
 
-        report:
-          output: "./reports/schema-diff.html"
-          exportSql: false
+          report:
+            output: "./reports/schema-diff.html"
+            exportSql: false
 
         analyse-script-tool:
           provider: "oracle"

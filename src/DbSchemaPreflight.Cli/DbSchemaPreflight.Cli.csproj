@@ -16,7 +16,14 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>db-schema-preflight</AssemblyName>
+    <AssemblyName>dbpreflight</AssemblyName>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dbpreflight</ToolCommandName>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+    <PackageId>DbSchemaPreflight.Cli</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Marcelo Vesantera</Authors>
+    <Description>Oracle schema comparison and migration preflight analyzer.</Description>
   </PropertyGroup>
 
 </Project>

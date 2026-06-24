@@ -4,10 +4,9 @@ namespace DbSchemaPreflight.Cli.Config;
 
 public sealed class RootConfig
 {
-    public ConnectionConfig Reference { get; set; } = new();
-    public ConnectionConfig Target { get; set; } = new();
-    public ReportConfig Report { get; set; } = new();
+    [YamlMember(Alias = "compare-tool", ApplyNamingConventions = false)]
+    public CompareTool? CompareTool { get; set; }
 
-    [YamlMember(Alias = "analyse-script-tool")]
+    [YamlMember(Alias = "analyse-script-tool", ApplyNamingConventions = false)]
     public AnalyseScriptToolConfig? AnalyseScriptTool { get; set; }
 }

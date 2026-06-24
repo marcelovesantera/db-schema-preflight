@@ -5,7 +5,7 @@ namespace DbSchemaPreflight.Oracle;
 
 public sealed class OracleColumnReader
 {
-    public List<ColumnDefinition> Read(OracleConnection connection, string schemaName)
+    public async Task<List<ColumnDefinition>> ReadAsync(OracleConnection connection, string schemaName)
     {
         const string SQL = """
             SELECT table_name, column_name, data_type, data_length,
@@ -18,22 +18,22 @@ public sealed class OracleColumnReader
         using var command = new OracleCommand(SQL, connection);
         command.Parameters.Add(new OracleParameter("schema", schemaName.ToUpperInvariant()));
 
-        using var reader = command.ExecuteReader();
+        using var reader = await command.ExecuteReaderAsync();
 
         var columns = new List<ColumnDefinition>();
-        while (reader.Read())
+        while (await reader.ReadAsync())
         {
             columns.Add(new ColumnDefinition
             {
-                TableName  = reader["table_name"].ToString()!.ToUpperInvariant(),
-                Name       = reader["column_name"].ToString()!.ToUpperInvariant(),
-                DataType   = reader["data_type"].ToString()!.ToUpperInvariant(),
+                TableName     = reader["table_name"].ToString()!.ToUpperInvariant(),
+                Name          = reader["column_name"].ToString()!.ToUpperInvariant(),
+                DataType      = reader["data_type"].ToString()!.ToUpperInvariant(),
                 DataLength    = reader["data_length"]    is DBNull ? null : Convert.ToInt32(reader["data_length"]),
                 DataPrecision = reader["data_precision"] is DBNull ? null : Convert.ToInt32(reader["data_precision"]),
                 DataScale     = reader["data_scale"]     is DBNull ? null : Convert.ToInt32(reader["data_scale"]),
-                Nullable   = reader["nullable"].ToString() == "Y",
-                DataDefault = reader["data_default"] is DBNull ? null : reader["data_default"].ToString()?.Trim(),
-                ColumnId   = Convert.ToInt32(reader["column_id"])
+                Nullable      = reader["nullable"].ToString() == "Y",
+                DataDefault   = reader["data_default"]  is DBNull ? null : reader["data_default"].ToString()?.Trim(),
+                ColumnId      = Convert.ToInt32(reader["column_id"])
             });
         }
 
