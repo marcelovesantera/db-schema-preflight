@@ -26,4 +26,27 @@ public sealed class OracleMetadataExtractor
             Tables      = tables
         };
     }
+
+    public async Task<SchemaSnapshot> ExtractAsync(string connectionString, string schemaName)
+    {
+        using var connection = await new OracleConnectionFactory().OpenConnectionAsync(connectionString);
+
+        var tables  = await new OracleTableReader().ReadAsync(connection, schemaName);
+        var columns = await new OracleColumnReader().ReadAsync(connection, schemaName);
+
+        var tableDict = tables.ToDictionary(t => t.Name);
+
+        foreach (var col in columns)
+        {
+            if (tableDict.TryGetValue(col.TableName, out var table))
+                table.Columns.Add(col);
+        }
+
+        return new SchemaSnapshot
+        {
+            SchemaName  = schemaName.ToUpperInvariant(),
+            ExtractedAt = DateTime.UtcNow,
+            Tables      = tables
+        };
+    }
 }

@@ -39,4 +39,39 @@ public sealed class OracleColumnReader
 
         return columns;
     }
+
+    public async Task<List<ColumnDefinition>> ReadAsync(OracleConnection connection, string schemaName)
+    {
+        const string SQL = """
+            SELECT table_name, column_name, data_type, data_length,
+                   data_precision, data_scale, nullable, data_default, column_id
+            FROM all_tab_columns
+            WHERE owner = :schema
+            ORDER BY table_name, column_id
+            """;
+
+        using var command = new OracleCommand(SQL, connection);
+        command.Parameters.Add(new OracleParameter("schema", schemaName.ToUpperInvariant()));
+
+        using var reader = await command.ExecuteReaderAsync();
+
+        var columns = new List<ColumnDefinition>();
+        while (await reader.ReadAsync())
+        {
+            columns.Add(new ColumnDefinition
+            {
+                TableName     = reader["table_name"].ToString()!.ToUpperInvariant(),
+                Name          = reader["column_name"].ToString()!.ToUpperInvariant(),
+                DataType      = reader["data_type"].ToString()!.ToUpperInvariant(),
+                DataLength    = reader["data_length"]    is DBNull ? null : Convert.ToInt32(reader["data_length"]),
+                DataPrecision = reader["data_precision"] is DBNull ? null : Convert.ToInt32(reader["data_precision"]),
+                DataScale     = reader["data_scale"]     is DBNull ? null : Convert.ToInt32(reader["data_scale"]),
+                Nullable      = reader["nullable"].ToString() == "Y",
+                DataDefault   = reader["data_default"]  is DBNull ? null : reader["data_default"].ToString()?.Trim(),
+                ColumnId      = Convert.ToInt32(reader["column_id"])
+            });
+        }
+
+        return columns;
+    }
 }
