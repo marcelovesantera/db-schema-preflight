@@ -18,6 +18,36 @@ For each difference the report also includes an Oracle SQL suggestion (`CREATE T
 - Read access to both Oracle schemas (`ALL_TABLES`, `ALL_TAB_COLUMNS`)
 - Oracle 12c or later (tested with Oracle 19c and Oracle XE 21c)
 
+## Installation
+
+### As a global tool (recommended)
+
+1. Download the `.nupkg` file from the desired release.
+2. Install globally:
+
+   ```bash
+   dotnet tool install --global DbSchemaPreflight.Cli --add-source <folder-containing-nupkg>
+   ```
+
+3. Verify the installation:
+
+   ```bash
+   dbpreflight --help
+   ```
+
+To update to a new version:
+
+```bash
+dotnet tool uninstall --global DbSchemaPreflight.Cli
+dotnet tool install --global DbSchemaPreflight.Cli --add-source <folder-containing-new-nupkg>
+```
+
+### As a local project (development)
+
+```bash
+dotnet run --project src/DbSchemaPreflight.Cli -- <command>
+```
+
 ## Build
 
 ```bash
@@ -26,26 +56,35 @@ dotnet build
 
 ## Configuration
 
-Copy the example config file and fill in your connection details:
+Run `dbpreflight init` in any directory to generate a `config.yaml` template:
 
 ```bash
-cp config.yaml.example config.yaml
+dbpreflight init
 ```
 
-Edit `config.yaml`:
+Edit `config.yaml` with your connection details:
 
 ```yaml
-reference:
-  connectionString: "User Id=APP_REF;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
-  schema: "APP_REF"
+compare-tool:
+  reference:
+    connectionString: "User Id=APP_REF;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+    schema: "APP_REF"
 
-target:
-  connectionString: "User Id=APP_TARGET;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
-  schema: "APP_TARGET"
+  target:
+    connectionString: "User Id=APP_TARGET;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+    schema: "APP_TARGET"
 
-report:
-  output: "./reports/schema-diff.html"
-  exportSql: true   # optional — generates ./reports/schema-diff.sql alongside the HTML
+  report:
+    output: "./reports/schema-diff.html"
+    exportSql: true   # optional — generates ./reports/schema-diff.sql alongside the HTML
+
+analyse-script-tool:
+  provider: "oracle"
+  connectionString: "User Id=APP_USER;Password=CHANGE_ME;Data Source=localhost:1521/XEPDB1"
+  schema: "APP_SCHEMA"
+  file: "./scripts/my-script.sql"
+  report:
+    output: "./reports/script-analysis.html"
 ```
 
 > `config.yaml` is git-ignored. Never commit real credentials.
@@ -53,22 +92,19 @@ report:
 ## Usage
 
 ```bash
-dotnet run --project src/DbSchemaPreflight.Cli -- compare --config ./config.yaml
+dbpreflight compare
+dbpreflight analyse-script
 ```
 
-Expected terminal output:
+Expected terminal output for `compare`:
 
 ```
-Database Schema Preflight
-Comparing APP_REF → APP_TARGET...
-
-Metadata extraction: OK
-Schema comparison: 5 difference(s) found
-  Critical : 3
-  Warning  : 2
-  Info     : 0
+[HH:mm:ss] Connecting to reference schema: APP_REF...
+[HH:mm:ss] Connecting to target schema: APP_TARGET...
+[HH:mm:ss] Comparing schemas...
 
 Status: NOT READY
+5 difference(s) found — Critical: 3 | Warning: 2 | Info: 0
 
 Report saved to: ./reports/schema-diff.html
 SQL script saved to: ./reports/schema-diff.sql
@@ -126,7 +162,6 @@ src/
 tests/
   DbSchemaPreflight.Core.Tests/        Unit tests for SchemaDiffEngine and SQL suggestion generator
   DbSchemaPreflight.Reporting.Tests/   Unit tests for ReportSummary and HtmlReportGenerator
-config.yaml.example            Config template (copy to config.yaml and fill in credentials)
 examples/                      SQL DDL scripts for test schemas
 ```
 
